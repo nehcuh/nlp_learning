@@ -1,0 +1,384 @@
+#+TITLE: 自然语言处理 -- 第一课: AI Paradigm
+
+* AI Paradigm (AI 范式)
+
+** 1 Rule Based
+#+BEGIN_QUOTE
+基于固定范式去生成语言
+#+END_QUOTE
+
+*** 1.1 简单语言范式与生成
+
+1. 简单语言范式描述
+
+   下面的 `simple_grammar` 就定义了一个简单的语言范式，譬如， `sentence => noun_phrase verb_phrase` 就定义了一个语句 (`sentence`)
+   的组成是怎么样的，即名词短语加动词短语 ('noun_phrase verb_phrase'), 之后，分别对名词短语 (`noun_phrase`), 动词短语 (`verb_phrase`)
+   进行了分解。
+
+   如此，通过预设的范式，程序可以自动生成相应的语句。
+
+   #+BEGIN_SRC python
+   simple_grammar = """
+   sentence => noun_phrase verb_phrase
+   noun_phrase => Article Adj* noun
+   Adj* => null | Adj Adj*
+   verb_phrase => verb noun_phrase
+   Article => 一个 | 这个
+   noun => 女人 | 篮球 | 桌子 | 小猫
+   verb => 看着 | 坐在 | 听着 | 看见
+   Adj => 蓝色的 | 好看的 | 小小的
+   """
+   #+END_SRC
+
+2. 按照 grammar 描述，对每个词性分别生成相应词汇，最后组合
+   下面的代码示范了基于规则生成形容词短语，通过预设的一些形容词，通过递归与随机选择，最后进行组合，可以产生相应短语。
+
+   #+BEGIN_SRC python
+import random
+
+def adj():
+    """
+    根据固定的 adj. 列表，生成随机的 adj
+    """
+    return random.choice("蓝色的 | 好看的 | 小小的".split("|").split()[0])
+
+def adj_star(depth: int=1):
+    """
+    生成随机的 adj. 组合, 这里使用了递归的方式进行 adj. 列表生成
+
+    :param depth: adj. 列表的深度
+    """
+    if depth >= 3:
+        return adj()
+    return random.choice(["", adj() + adj_star(depth+1)])
+   #+END_SRC
+
+   #+BEGIN_QUOTE
+   **现实 (缺点)**: 当语法更改后，函数组合需要重新修改
+   **理想 (预期)**: 当数据更改时，程序不需要重写， generalization AI
+   #+END_QUOTE
+
+*** 1.2 generative 语言范式的描述与生成
+
+1. grammar 描述
+
+   #+BEGIN_SRC python
+adj_grammar = """
+Adj* => null | Adj Adj*
+Adj => 蓝色的 | 小小的 | 好看的
+"""
+   #+END_SRC
+
+2. 生成新的 grammar 结构
+
+   #+BEGIN_SRC python
+grammar = {} # 语法树
+for line in origin_grammar.split("\n"):
+    if not line.strip().rstrip(): continue # 如果为空行，直接跳过
+    exp, stmt = line.split("=>")
+
+    grammar[exp.strip()] = [s.strip() for s.split() in stmt.strip().split("|")]
+   #+END_SRC
+
+3. 终止符与可扩展的符号：当遇到终止符时，返回；当遇到可扩展符号，继续扩展，直至遇到终止符。
+
+   #+BEGIN_SRC python
+def generate(gram: dict(), target: str):
+    """
+    根据 target 返回相应的短语
+
+    :param gram: 语法
+    :param target: 相应短语标签，譬如 `adj`, `adj*` 等
+    """
+    if target in gram:
+        new_expanded = random.choice(gram[target]) # target 可以继续展开
+        return "".join(generate(gram, t) for t in new_expanded)
+    else:
+        return target
+   #+END_SRC
+  
+*** 1.3 generative 方式生成语言
+
+1. simple grammar 的处理
+   - ~create_grammar(gram, split="|")~ 函数: 生成新的语法数据结构
+
+     #+BEGIN_SRC python
+def create_grammar(gram, outer_delimiter="=>", inner_delimiter="|", line_delimiter="\n"):
+    grammar = {}
+    for line in gram.split(line_delimiter):
+        if not line.strip():
+            continue
+        exp, stmt = line.split(outer_delimiter)
+        grammar[exp.split()[0]] = [s.split() for s in stmt.split(inner_delimiter)]
+    return grammar
+     #+END_SRC
+   - ~generate(gram, target)~: 生成新的语句
+
+     #+BEGIN_SRC python
+def generate(gram, target):
+    if target not in gram: return target
+    expand = [generate(gram, t) for t in random.choice(gram[target])]
+    return ''.join([e if e != '/n' else '\n' for e in expand if e != "null"])
+     #+END_SRC
+   - 生成示例语句
+
+     #+BEGIN_SRC python
+grammar = create_grammer(simple_grammar)
+generate(grammar, "sentence")
+     #+END_SRC
+
+2. 西部世界语言生成示例
+
+   #+BEGIN_SRC python
+# 人类语言
+human = """
+human = 自己 寻找 活动
+自己 = 我 | 俺 | 我们
+寻找 = 看看 | 找找 | 想找点
+活动 = 乐子 | 玩的
+"""
+
+# 接待员语言
+host = """
+host = 寒暄 报数 询问 业务相关 结尾
+报数 = 我是 数字 号 ，
+数字 = 单个数字 | 数字 单个数字
+单个数字 = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+寒暄 = 称谓 打招呼 | 打招呼
+称谓 = 人称 ，
+人称 = 先生 | 女士 | 小朋友
+打招呼 = 你好， | 您好，
+询问 = 请问您要 | 您需要
+业务相关 = 玩玩 具体业务
+具体业务 = 喝酒 | 打牌 | 打猎 | 赌博
+结尾 = 吗？"""
+
+generate(create_grammar("host", "="), target="host")
+   #+END_SRC
+
+   #+RESULTS:
+   : '您好我是9号，请问您要玩玩赌博吗？'
+
+*** 1.4 Data Driven
+
+#+BEGIN_QUOTE
+我们希望：当数据更新时，不需要重写程序，generalization AI?
+#+END_QUOTE
+
+1. 自动编程
+
+   #+BEGIN_SRC python
+programming = """
+stmt => if_exp | while_exp | assignment
+assignment => var = var
+if_exp => if (var) { /n ... stmt }
+while_exp => while ( var ) { /n ... stmt }
+var => chars number
+chars => a | b | c | d | e | f | g
+number => 1 | 2 | 3
+"""
+
+generate(create_grammar(programming), "stmt")
+   #+END_SRC
+
+** 2 Probability Based
+
+*** 2.1 概率模型提出
+
+#+BEGIN_QUOTE
+语言模型产生不同的语句，如何判断哪一句语句更好，此时，可以使用概率模型对语句进行判断。
+#+END_QUOTE
+
+1. 语言模型 (Language Model)
+
+   #+BEGIN_QUOTE
+自然语言处理中，最常见的数据是文本数据。我们可以将一段自然语言文本看做一段离散的时间序列。假设一段长度为 $T$ 的文本中的词依次为 $w_1, w_2, \ldots, w_T$, 那么，在离散的时间序列中， $w_t ( 1 \leq t \leq T)$ 可看做在时间步 (time step) $t$ 的输出的输出或标签。当给定一个长度为 $T$ 的词序列 $w_1, w_2, \ldots, w_T$ 时，语言模型将计算该序列的概率 $P(w_1, w_2, \ldots, w_T)$.
+   #+END_QUOTE
+
+   自然语言处理中最常见的数据是文本数据。我们可以把一段自然语言文本看作一段离散的时间序列。假设一段长度为 T 的文本中的词依次为 w1,w2,…,wT ，那么在离散的时间序列中， wt （ 1≤t≤T ）可看作在时间步（time step） t 的输出或标签。给定一个长度为 T 的词的序列 w1,w2,…,wT ，语言模型将计算该序列的概率：
+
+2. 语言模型计算
+
+   假设序列 $w_1, w_2, \ldots, w_T$ 中每个词是依次生成的，我们有
+   \begin{equation}
+     P(w_{1}, w_{2}, \ldots, w_{T}) = \prod_{t=1}^{T}P(w_{t}|w_{1}, \ldots, w_{t-1})
+   \end{equation}
+   譬如，一段只有 4 个词的文本，相应的语言模型概率如下
+   \begin{equation}
+     P(w_{1}, w_{2}, w_{3}, w_{4}) = P(w_{1})P(w_{2}|w_{1})P(w_{3}|w_{1}, w_{2})P(w_{4}|w_{1}, w_{2}, w_{3}})
+   \end{equation}
+
+   为了计算语言模型，我们需要知道词的概率，以及一个词在给定前几个词的情况下，其条件概率。如果训练集是一个大型语料库，可以近似用该词在训练数据中的词频计算其概率。 此时， $P(w_1)$ 为 $w_1$
+   在训练集中数量除以总词数， $P(w_2|w_1)$ 可以计算为 $w_1, w_2$ 两词相邻的频率除以 $w_1$ 词频率。
+
+3. N-Gram 模型
+
+   N 元语法通过马尔科夫假设简化了语言模型的计算。这里的马尔科夫假设指一个词的出现只与之前 $n$
+   个词相关。如果是 $N-1$ 阶马尔科夫链假设，相应的语言模型可以改写为：
+   \begin{equation}
+     P(w_{1}, w_{2}, \ldots, w_{T}) \approx \prod_{t=1}^{T}P(w_{t}|w_{t-(n-1)}, \ldots, w_{t-1})
+   \end{equation}
+
+*** 2.2 实战
+
+#+BEGIN_QUOTE
+根据语料库，利用 N-Gram 模型，计算不同语句的概率大小。
+#+END_QUOTE
+
+1. 文本预处理
+
+   - 文件读取
+
+     #+BEGIN_SRC python
+import pandas as pd
+
+df = pd.read_csv("sqlResult_1558435.csv", encoding='gbk')
+articles = df["content"].tolist()
+     #+END_SRC
+
+   - 特殊符号处理
+
+     #+BEGIN_SRC python
+import re
+
+def token(string):
+    """
+    将 string 中普通词汇取出
+    """
+    return re.findall("\w+", string)
+
+articles_clean = ["".join(token(str(a))) for a in articles]
+     #+END_SRC
+
+   - 结巴分词分词处理
+
+     #+BEGIN_SRC python
+import jieba
+
+def cut(string):
+    """
+    利用结巴分词对 string 进行分词，并返回词汇列表
+    """
+    return list(jieba.cut(string))
+     #+END_SRC
+
+- 降维处理
+
+  #+BEGIN_SRC python
+from functools import reduce
+from operator import add
+
+token_1g = reduce(add, article_words)
+  #+END_SRC
+
+- 针对大文件处理
+
+  #+BEGIN_SRC python
+# 如果文件太大，可以先将内容存为文件再处理
+
+import pandas as pd
+import re
+from collections import Counter
+import jieba
+
+# 1. 文件读取
+articles = pd.read_csv("sqlResult_1558435.csv", encoding='gbk')['content'].tolist()
+
+# 2. 特殊符号处理
+articles_clean = ["".join(re.findall("\w+", str(articles))) for article in articleso]
+
+# 3. 符号处理结束后的内容存为文件
+with open("articles_9k.txt", "w") as f:
+    for article in articles_clean:
+        f.write(article+"\n")
+
+# 4. 分词处理
+def cut(string):
+    return list(jieba.cut(string))
+
+token_1g = []
+
+# 逐行读取
+for i, line in enumerate(open("articles_9k.txt")):
+    if i % 100 == 0:
+        print(i)
+
+    token_1g += cut(line)
+
+# 5. 降维
+words_1g_count = Counter(token_1g)
+# 查看词组出现最多的前 10 个
+print(words_1g_count.most_common(10))
+  #+END_SRC
+
+- 可视化
+
+  #+BEGIN_SRC python
+import matplotlib.pyplot as plt
+
+frequencies = [v for k, v in words_1g_count.most_common(100)]
+x = [i for i in range(100)]
+
+plt.plot(x, frequencies)
+  #+END_SRC
+
+2. 概率计算 (按照 2-gram 模型定义)
+
+   - 单独词汇概率
+
+     #+BEGIN_SRC python
+def prob_single(word):
+    """
+    加入对于非语料库词汇概率计算
+    利用 log 函数避免结果越界
+    """
+    if word in words_1g_count:
+        return words_1g_count[word] / len(token_1g)
+    else:
+        return -math.log(words_1g_count[word]/len(token_1g))
+     #+END_SRC
+
+   - 连续两个词汇的分布
+
+     #+BEGIN_SRC python
+token_2g = ["".join(token_1g[i:i+2] for i in range(len(token_1g) - 2))]
+words_2_counter = Counter(token_2g)
+     #+END_SRC
+
+   - 连续两个词出现概率
+
+     #+BEGIN_SRC python
+def prob_dual(word_1, word_2):
+    if word_1 + word_2 in words_2_count:
+        return -math.log(words_2_count[word_1+word_2] / len(token_2g))
+    else:
+        return prob_single(word_2) + prob_single(word_2)
+     #+END_SRC
+
+   - 整句话出现概率
+
+     #+BEGIN_SRC python
+def get_probability(sentence):
+    words = cut(sentence)
+
+    sentence_pro = 0.
+    for i, word in enumerate(words[:-1]):
+        next_ = words[i+1]
+        prob_2_gram = prob_dual(word, next_)
+
+        sentence_pro += prob_2_gram
+    return sentence_pro
+     #+END_SRC
+
+3. 注意点
+
+   #+BEGIN_QUOTE
+   当词库很大的时候，某个词汇出现的概率很小，如果某句话很长，
+   那么概率连乘的后果就是概率无限趋近于 0，
+   超出浮点表示范围，此时，可以用 $-\log$ 函数来对概率进行处理，避免越界。
+   #+END_QUOTE
+
+
+** 3 Problem Solving: Search Based
+** 4 Mathematical or Analytic Based
+** 5 Machine Learning (deep learning) Based

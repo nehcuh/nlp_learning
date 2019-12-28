@@ -1,0 +1,30 @@
+#+TITLE:   自然语言处理学习笔记与代码整理
+#+DATE:    December 24, 2019
+#+SINCE:   {replace with next tagged release version}
+#+STARTUP: inlineimages
+
+* Table of Contents :TOC_3:noexport:
+- [[#description][Description]]
+- [[#prerequisites-and-outline][Prerequisites and Outline]]
+- [[#comments][Comments]]
+
+* Description
+主要是笔者在开课吧学习的自然语言处理相关课程笔记整理与代码总结，不给自己找理由，给自己立 flag, 然后去完成它，就可以了。
+不然老是拖着，是对自己的不负责任。
+
+笔记整理过程，既是是学习的一个总结，也是对自我知识脉络的一个梳理和重新认识，当一门知识长久不用的时候，回头再去翻找这段
+记忆，如果没有笔记的帮助，重拾起来还是相当困难的。
+
+基于此，笔者准备将所有知识尽可能完整而成体系地梳理出来。目录组织如下：
++ =notes=: 存放所有笔记内容
++ =codes=: 存放示例代码等
++ =assignments=: 作业内容
+
+* Prerequisites and Outline
+对于读者，如果想要掌握 NLP, 就笔者经验，需要如下一些技能：
+1. Python 基础
+2. 常用库使用，包括 =numpy=, =pandas=, =matplotlib= 等
+3. 机器学习等内容，会在深入课堂后按顺序整理，准备以南大周志华的 “机器学习”，“机器学习实战” 和李沐等人的 “动手深度学习” 为参考进行整理
+
+* Comments
+如果有任何建议与问题，可以直接发 Issue.
