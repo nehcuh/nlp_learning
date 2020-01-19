@@ -1,1 +1,165 @@
 #+TITLE: 基于概率的语句判别系统
+
+#+BEGIN_QUOTE
+语言模型产生不同的语句，如何判断哪一句语句更好，此时，可以使用概率模型对语句进行判断。
+#+END_QUOTE
+
+* 语言模型
+
+1. 将一段自然语言文本看做一段离散的时间序列
+2. 假设一段长度为 $T$ 的文本中的词依次为 $w_1, w_2, \ldots, w_T$, 那么，在离散的时间序列中， $w_t ( 1 \leq t \leq T)$ 可看做在时间步 (time step) $t$ 的输出的输出或标签。
+3. 给定一个长度为 $T$ 的词序列 $w_1, w_2, \ldots, w_T$ 时，语言模型将计算该序列的概率 $P(w_1, w_2, \ldots, w_T)$.
+
+* 语言模型计算
+
+1. 假设序列 $w_1, w_2, \ldots, w_T$ 中每个词是依次生成的，我们有
+   \begin{equation}
+     P(w_{1}, w_{2}, \ldots, w_{T}) = \prod_{t=1}^{T}P(w_{t}|w_{1}, \ldots, w_{t-1})
+   \end{equation}
+2. 一段只有 4 个词的文本，相应的语言模型概率计算如下
+   \begin{equation}
+     P(w_{1}, w_{2}, w_{3}, w_{4}) = P(w_{1})P(w_{2}|w_{1})P(w_{3}|w_{1}, w_{2})P(w_{4}|w_{1}, w_{2}, w_{3}})
+   \end{equation}
+3. N-gram 模型: N 元语法通过马尔科夫假设简化了语言模型的计算。马尔科夫假设指一个词的出现只与之前 $n$ 个词相关。 如果是 $N-1$ 阶马尔科夫链假设，相应的语言模型可以改写为
+   \begin{equation}
+     P(w_{1}, w_{2}, \ldots, w_{T}) \approx \prod_{t=1}^{T}P(w_{t}|w_{t-(n-1)}, \ldots, w_{t-1})
+   \end{equation}
+
+* 利用 N-gram 模型对生成的自然语句进行评分
+
+** 说明
+
+#+BEGIN_QUOTE
+之前曾经用 rule-based 的方式产生了语句，之后更是用 rule-based 产生了一个简单的对话系统，但是对话系统
+产生的语句好坏如何判断，并没有一个很好的标准。这里使用最简单的 2-元模型，对产生的语句进行判断。
+#+END_QUOTE
+
+** 训练集
+
+1. 压缩文件名 `export_sql_1558435.zip`
+2. 实际 `csv` 文件格式
+   #+BEGIN_SRC python
+import pandas as pd
+
+df = pd.read_csv("sqlResults_1558435.csv", encoding='gb18030')
+articles = df['content'].tolist()
+
+
+   #+END_SRC
+3. 特殊符号处理
+   #+BEGIN_SRC python
+import re
+
+def token(string):
+    """
+    将 string 中的普通词汇取出
+    """
+    return re.findall("\w+", string)
+
+articles_clean = ["".join(token(str(a))) for a in articles]
+   #+END_SRC
+4. 结巴分词 (`jieba`) 使用
+   #+BEGIN_SRC python
+import jieba
+
+def cut(string):
+    """
+    利用结巴分词对 string 进行分词，并返回词汇列表
+    """
+    return list(jieba.cut(string))
+
+article_words = [cut(string) for string in articles_clean]
+   #+END_SRC
+5. 降维处理
+   #+BEGIN_SRC python
+from functools import reduce
+from operator import add
+
+token_1g = reduce(add, article_words)
+   #+END_SRC
+6. [可选] 针对大文件的处理方式
+   #+BEGIN_SRC python
+# 如果文件太大，先将内容存为文件再处理
+import pandas as pd
+import re
+from collections import Counter
+import jieba
+
+# 1. 读取文件
+articles = pd.read_csv("sqlResult_1558435.csv", encoding="gb18030")["content"].tolist()
+
+# 2. 处理特殊符号
+articles_clean = ["".join(re.findall("\w+", str(article))) for article in articles]
+
+# 3. 将处理后文本存为文件
+with open("articles_9k.txt", "w") as f:
+    for article in articles_clean:
+        f.write(article+"\n")
+
+# 4. 分词
+def cut(string):
+    return list(jieba.cut(string))
+
+token_1g = []
+# 逐行读取
+for i, line in enumerate(open("article_9k.txt")):
+    if i % 100 == 0:
+        print(i)
+    token_1g += cut(line)
+
+# 5. 降维
+words_1g_count += Counter(token_1g)
+# 查看词组最多的前 10 个
+print(words_1g_count.most_common(10))
+   #+END_SRC
+7. [可选] 可视化
+   #+BEGIN_SRC python
+import matplotlib.pyplot as plt
+
+frequencies = [v for k,v in words_1g_count.most_common(100)]
+x = [i for i in range(100)]
+
+plt.plot(x, frequencies)
+   #+END_SRC
+** 概率计算
+
+1. 单独词汇的概率
+   #+BEGIN_SRC python
+def prob_single(word):
+    """
+    加入对于非语料库词汇概率计算
+    利用 log 函数避免结果越界
+    """
+    if word in words_1g_count:
+        return -math.log(words_1g_count[word] / len(token_1g))
+    else:
+        return -math.log(1 / len(token_1g))
+   #+END_SRC
+
+2. 连续两个词汇的概率
+   #+BEGIN_SRC python
+token_2g = ["".join(token_1g[i: i+2] for i in range(len(token_1g) - 2))]
+words_2_counter = Counter(token_2g)
+def prob_dual(word_1, word_2):
+    if word_1 + word_2 in words_2_count:
+        return -math.log(words_2_count[word_1+word_2] / len(token_2g))
+    else:
+        return prob_single(word_1) + prob_single(word_2)
+   #+END_SRC
+
+3. 一句话的概率测试
+
+   #+BEGIN_SRC python
+def get_probability(sentence):
+   """
+   获取 sentence 概率
+   """
+   words = list(cut(sentence))
+
+   sentence_pro = 0.
+   for i, word in enumerate(words[:-1]):
+      next_ = words[i+1]
+      prob_2_gram = prob_dual(word, next_)
+      sentence_pro += prob_2_gram
+   return sentence_pro
+   #+END_SRC

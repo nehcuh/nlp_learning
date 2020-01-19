@@ -1,0 +1,328 @@
+* 基于搜索的路径规划问题
+
+** Depth First Search (DFS) and Breadth First Search (BFS)
+*** 1. BFS 介绍
+
+#+BEGIN_QUOTE
+简单而言，从一棵树的顶点开始，按照自上而下，依次对每个层级遍历，直至遍历到最后一个叶结点。
+#+END_QUOTE
+
+[[file:bfs_structure_01.png]]
+
+**** 1. 图表示
+
+***** 1.1 结点的表示
+1. 属性
+   - 结点名称
+   - 与结点相连接的其他结点
+   - 结点的状态表示
+     - 未访问，正在访问，结束访问
+     - 正在访问对应的阶段，访问结束对应的阶段
+2. 方法
+   - 增加相邻结点的方法
+***** 1.2 图的表示
+1. 属性
+2. 方法
+*** 2. DFS 介绍
+
+#+BEGIN_QUOTE
+简单而言，从一棵树的顶点开始，按照每条路径进行遍历，直至将所有路径遍历结束。
+#+END_QUOTE
+
+[[file:dfs_structure_01.png]]
+
+** 城市规划问题
+
+#+BEGIN_QUOTE
+场景描述：给出不同城市经纬度，画出城市之间的拓扑结构，并设置任意两个城市之间的可行线路。
+#+END_QUOTE
+
+*** 1. 输入：城市经纬度
+
+1. 原始数据
+
+   #+BEGIN_SRC python
+coordination_source = """
+{name:'兰州', geoCoord:[103.73, 36.03]},
+{name:'嘉峪关', geoCoord:[98.17, 39.47]},
+{name:'西宁', geoCoord:[101.74, 36.56]},
+{name:'成都', geoCoord:[104.06, 30.67]},
+{name:'石家庄', geoCoord:[114.48, 38.03]},
+{name:'拉萨', geoCoord:[102.73, 25.04]},
+{name:'贵阳', geoCoord:[106.71, 26.57]},
+{name:'武汉', geoCoord:[114.31, 30.52]},
+{name:'郑州', geoCoord:[113.65, 34.76]},
+{name:'济南', geoCoord:[117, 36.65]},
+{name:'南京', geoCoord:[118.78, 32.04]},
+{name:'合肥', geoCoord:[117.27, 31.86]},
+{name:'杭州', geoCoord:[120.19, 30.26]},
+{name:'南昌', geoCoord:[115.89, 28.68]},
+{name:'福州', geoCoord:[119.3, 26.08]},
+{name:'广州', geoCoord:[113.23, 23.16]},
+{name:'长沙', geoCoord:[113, 28.21]},
+//{name:'海口', geoCoord:[110.35, 20.02]},
+{name:'沈阳', geoCoord:[123.38, 41.8]},
+{name:'长春', geoCoord:[125.35, 43.88]},
+{name:'哈尔滨', geoCoord:[126.63, 45.75]},
+{name:'太原', geoCoord:[112.53, 37.87]},
+{name:'西安', geoCoord:[108.95, 34.27]},
+//{name:'台湾', geoCoord:[121.30, 25.03]},
+{name:'北京', geoCoord:[116.46, 39.92]},
+{name:'上海', geoCoord:[121.48, 31.22]},
+{name:'重庆', geoCoord:[106.54, 29.59]},
+{name:'天津', geoCoord:[117.2, 39.13]},
+{name:'呼和浩特', geoCoord:[111.65, 40.82]},
+{name:'南宁', geoCoord:[108.33, 22.84]},
+//{name:'西藏', geoCoord:[91.11, 29.97]},
+{name:'银川', geoCoord:[106.27, 38.47]},
+{name:'乌鲁木齐', geoCoord:[87.68, 43.77]},
+{name:'香港', geoCoord:[114.17, 22.28]},
+{name:'澳门', geoCoord:[113.54, 22.19]}
+"""
+   #+END_SRC
+2. 数据结构转换 ==> 利用 ~dict~ 存储相应城市的经纬度信息
+   #+BEGIN_SRC python
+import re
+
+city_info = {}
+city_tuple = []
+
+for line in coordination_source.split("\n"):
+    if not line.strip().rstrip():
+        continue
+    if line.startswith("//"):
+        continue
+    city, coords = re.findall(r"name:'(\w+)', geoCoord:\[(.*)\]", line)[0]
+    city_info[city] = list(map(float, coords.split(",")))
+    city_tuple.append((city, city_info[city]))
+   #+END_SRC
+
+*** 2. 计算与展示：城市距离与拓扑结构显示
+
+1. 根据经纬度计算城市距离 (考虑几何上的圆球也可以计算)
+   #+BEGIN_SRC python
+from geopy.distance import geodesic
+from typing import Union, Tuple, List
+
+def get_city_distance(loc_1: Union[Tuple, List], loc_2: Union[Tuple, List]):
+    """
+    计算两个城市之间距离
+
+    :param loc_1: 城市 1 的纬度，经度
+    :param loc_2: 城市 2 的纬度，经度
+    """
+    return geodesick(loc_1, loc_2).km
+   #+END_SRC
+2. 展示城市拓扑结构
+   - ~networkx~ 显示拓扑结构
+     #+BEGIN_SRC python
+import matplotlib.pyplot as plt
+import networkx as nx
+
+cities = list(city_info.keys())
+city_graph = nx.Graph()
+city_graph.add_nodes_from(cities)
+nx.draw(city_graph, city_info, with_labels=True, node_size=10)
+     #+END_SRC
+   - ~pyecharts~ 显示拓扑结构
+     #+BEGIN_SRC python
+from pyecharts import options as opts
+from pyecharts.charts import Geo, Page
+from pyecharts.faker import Collector, Faker
+from pyecharts.globals import ChartType, SymbolType
+
+@C.funcs
+def geo_background() -> Geo:
+    c = (
+        Geo()
+        .add_schema(
+            maptype="china",
+            itemstyle_opts=opts.ItemStyleOpts(
+                color="#323c48", border_color="#111"),
+        )
+        .add(
+            "",
+            city_tuple,
+            type_=ChartType.EFFECT_SCATTER,
+            color="red",
+        )
+        .set_series_opts(label_opts=opts.LabelOpts(is_show=False))
+        .set_global_opts(title_opts=opts.TitleOpts(title="Geo-background"))
+    )
+    return c
+     #+END_SRC
+3. 展示城市之间可行途径 (假设只有城市距离小于 700 的时候，可以直接到达)
+   #+BEGIN_SRC python
+from collections import defaultdict
+THRESHOLD = 700
+
+city_pair = []
+city_connection = defaultdict(list) # 保留路径的树形结构
+for city_A, loc_A in city_tuple:
+    for city_B, loc_B in city_tuple:
+        if city_A == city_B:
+            continue
+        distance = get_city_distance((loc_A[1], loc_A[0]), (loc_B[1], loc_B[0]))
+        if distance < THRESHOLD:
+            city_pair.append((city_A, city_B))
+            city_connection[city_A].append(city_B)
+
+ @C.funcs
+def geo_line_background() -> Geo:
+    c = (
+        Geo()
+        .add_schema(
+            maptype="china",
+            itemstyle_opts=opts.ItemStyleOpts(
+                color="#323c48", border_color="#111"),
+        )
+        .add("", city_tuple, type_=ChartType.EFFECT_SCATTER, color="red")
+        .add("geo", city_connection, type_=ChartType.LINES, effect_opts=opts.EffectOpts(
+            symbol=SymbolType.ARROW, symbol_size=6, color="blue"
+        ))
+        .set_series_opts(label_opts=opts.LabelOpts(is_show=False))
+        .set_global_opts(title_opts=opts.TitleOpts(title="Geo-Line-background"))
+    )
+    return c
+
+
+Page().add(*[fn() for fn, _ in C.charts]).render()
+   #+END_SRC
+
+*** 3. 路径搜索
+
+1. 深度优先
+   #+BEGIN_SRC python
+def dfs(start: str, end: str, visited: defaultdict(set), level: int = 0, path: list = [], stop_flag: bool = False):
+    """
+    深度优先搜索算法
+
+    :param start: 起点
+    :param end: 终点
+    :param visited: 已访问结点记录
+    :param level: 当前层级
+    :param path: 路径记录
+    :param stop_flag: 递归停止标记
+    """
+    if start == end:
+        path = [start]
+        return path
+    if not city_connection[start]:  # 孤立结点
+        raise ValueError("错误，孤立结点，无可达路径")
+
+     def _dfs(start, end, level, visited, path, stop_flag):
+         path.append(start)
+         visited[level].add(start)
+         successors = city_connection[start]
+         for i, successor in enumerate(successors):
+             if successor in visited[level]:
+                 continue
+             if successor == end:
+                 path.append(successor)
+                 level += 1
+                 print(f"找到路径, {path}, 长度为 {level}")
+                 stop_flag = True
+                 return stop_flag, path
+             else:
+                 if i == len(successors) - 1: # 当前层级搜索结束
+                     print(f"lenghth of successors is {i+1}")
+                     # visited[level].add(successor)
+                     # visited.pop(level)
+                     # level -= 1
+                     print(f"当前搜索路径为 {path}")
+                     path.pop()
+                     if level == 0:
+                         print("找不到可行路径")
+                         stop_flag = True
+                         path = []
+                         return stop_flag, path
+                     return stop_flag, path
+                 if not stop_flag:
+                     level += 1
+                     visited[level] = visited[level-1].copy()
+                     visited[level].add(successor)
+                     stop_flag, path = _dfs(
+                         successor, end, level, visited, path, stop_flag)
+                 if stop_flag:
+                     return stop_flag, path
+             if stop_flag:
+                 return stop_flag, path
+     _dfs(start, end, level, visited, path, stop_flag)
+   #+END_SRC
+2. 广度优先
+   #+BEGIN_SRC python
+def bfs_search(graph: dict, start: str, target: str):
+    """
+    根据 graph 实现路径搜索
+
+    :param graph: 以 dict 形式保存的路径信息
+    :param start: 起始点
+    :param target: 终点
+    :param search_strategy: 搜索方式
+    """
+    pathes = [[start]] # 保存从起点开始所有的路径信息
+    visited = set()
+
+    while pathes: # 对所有路径进行遍历
+        path = pathes.pop()
+        frontier = path[-1] # 当前路径最后一个点为前点
+        successors = graph[frontier] # 前点连接的所有次级点
+        for successor in successors: # 对所有后点进行循环
+            if successor in visited: # 为了避免出现 loop, 即类似 A -> B, B -> A 的情形
+                continue
+            new_path = path + [successor]
+            pathes.append(new_path)
+            if successor == target:
+                return new_path
+        visited.add(frontier)
+
+   #+END_SRC
+
+*** 4. 路径排序
+#+BEGIN_SRC python
+from typing import Callable
+
+def search(graph: dict, start: str, target: str, search_strategy: Callable):
+    """
+    根据 graph 进行路径搜索，同时根据 search_strategy 对路径进行排序
+
+    :param graph: 路径信息
+    :param start: 起点
+    :param target: 终点
+    :param search_strategy: 路径优劣比较方式
+    """
+    pathes = [[start]]
+    visited = set()
+
+    while pathes: # 对所有路径进行遍历
+        path = pathes.pop()
+        frontier = path[-1]
+        successors = graph[frontier]
+        for successor in successors:
+            if successor in visited:
+                continue
+            new_path = path + [successor]
+            pathes.append(new_path) # BFS
+        pathes = search_strategy(pathes)
+        visited.add(frontier)
+        if pathes and pathes[0][-1] == target:
+            return pathes[0]
+#+END_SRC
+
+** 地铁线路规划问题
+
+#+BEGIN_QUOTE
+场景描述：爬取某城市地铁线路图，根据地铁线路规划任意两个地铁站的可行路线。
+#+END_QUOTE
+
+*** 1. 高德地图 API 设置
+
+1. 注册高德地图开发者
+2. 新建 web 项目，获取 key
+   #+BEGIN_EXAMPLE
+b60bb2dc92e3ba6080db83abb726efda
+   #+END_EXAMPLE
+3. 创建相应的爬虫规则以获取对应地铁站的经纬度信息
+   #+BEGIN_EXAMPLE
+https://restapi.amap.com/v3/place/text?keywords=%E5%8D%97%E6%B2%B9%E7%AB%99&city=shenzhen&output=xml&offset=20&page=1&key=b60bb2dc92e3ba6080db83abb726efda&extensions=all
+   #+END_EXAMPLE
